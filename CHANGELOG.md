@@ -1,5 +1,11 @@
 # pfQuest Turtle patch notes
 
+## 1.0.37 — 2026-10-14
+
+- Removed the overriding Turtle prerequisite from Q2975 so the Feralas breadcrumb correction also applies to the combined dataset.
+- Removed the incorrect prerequisite from Q41368 Reminiscent of Steel.
+- Corrected nameplate objective matching for finished kill quotas, similarly named creatures and multiple active quests.
+
 ## 1.0.36 — 2026-10-10
 
 - Quest-category filters refresh when saved; tooltips explain the repeatable-quest requirement.

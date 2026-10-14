@@ -2,6 +2,11 @@
 if not pfQuestChangelog then return end
 -- Published history and explicitly labeled development notes.
 pfQuestChangelog:Register("pfQuest-turtle", {
+{ ["version"] = "1.0.37", ["date"] = "2026-10-14", ["notes"] = {
+"Removed the overriding Turtle prerequisite from Q2975 so the Feralas main quest does not require its optional introduction.",
+"Removed the incorrect prerequisite from Q41368 Reminiscent of Steel.",
+"Corrected nameplate objective matching for finished kill quotas, similarly named creatures and multiple active quests."
+} },
 { ["version"] = "1.0.36", ["date"] = "2026-10-10", ["notes"] = {
 "Quest-category filters refresh when saved; tooltips explain the repeatable-quest requirement.",
 "Party marker settings refresh cached party data and routing immediately.",
