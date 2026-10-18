@@ -2,6 +2,14 @@
 if not pfQuestChangelog then return end
 -- Published history and explicitly labeled development notes.
 pfQuestChangelog:Register("pfQuest-turtle", {
+{ ["version"] = "1.0.38", ["date"] = "2026-10-18", ["notes"] = {
+"Restored Bloodsail Correspondence as the turn-in for The Bloodsail Buccaneers (595) and the start of its follow-up (597).",
+"Added Tanaris map positions for Sandmoon Village NPCs while preserving their Thousand Needles positions.",
+"Corrected Wanted: Growlpaw objectives and turn-in, and updated Growlpaw's location.",
+"Added P'li's missing name for Fallen One Cargo markers and restored Galen's Escape (1393) Strongbox turn-in.",
+"Added Nafien's Timbermaw Tunnel position while retaining his outdoor locations.",
+"To Survive in the Jungle now requires Survival 225 before its available-quest marker is shown."
+} },
 { ["version"] = "1.0.37", ["date"] = "2026-10-14", ["notes"] = {
 "Removed the overriding Turtle prerequisite from Q2975 so the Feralas main quest does not require its optional introduction.",
 "Removed the incorrect prerequisite from Q41368 Reminiscent of Steel.",
