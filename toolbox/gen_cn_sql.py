@@ -113,7 +113,7 @@ def generate_documents(bundle: dict, cache: dict, fetch) -> dict:
             )
         if category == "quest":
             statements.extend(_quest_text(bundle, stored, skipped, note))
-        if category not in category_stopped:
+        if statements or category not in category_stopped:
             files[FILE_NAMES[category]] = _sql_file(statements)
     text = "\n".join(skipped)
     if text:

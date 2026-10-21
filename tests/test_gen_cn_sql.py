@@ -155,7 +155,7 @@ def test_cached_rows_do_not_count_as_seen_name_region():
     result = generate_documents(bundle, {"item": {"1": "狼皮"}}, fetch)
     assert calls == [("item", 2)]
     assert "no name region" in result["skipped"]
-    assert "item-cn-2026-10-21.sql" not in result["files"]
+    assert "狼皮" in result["files"]["item-cn-2026-10-21.sql"]
 
 
 def test_relation_tables_unavailable_recorded_once():
