@@ -6,6 +6,10 @@ from cn_locale import (
     capycraft_url,
     render_name_sql,
     render_text_update,
+    official_name,
+    objective_slot,
+    quest_text_statements,
+    replace_english_names,
 )
 
 
@@ -78,3 +82,101 @@ def test_sql_string_escapes_quotes_backslashes_and_newlines():
     )
     assert "`Details_loc4` = '甲''乙'" in statement
     assert "`Details_loc4` = 'A\\\\B\\nC'" in statement
+
+
+def test_official_name_prefers_existing_chinese():
+    assert official_name("狼", "野狼") == "狼"
+    assert official_name("Wolf", "狼") == "狼"
+    assert official_name("Wolf", "Wolf") is None
+    assert official_name(None, None) is None
+
+
+def test_objective_slot_replaces_one_target_and_skips_both():
+    assert objective_slot(5, 9, "旧", "野猪", "肉") == ("skip", None)
+    assert objective_slot(5, 0, "旧", "野猪", None) == ("replace", "野猪")
+    assert objective_slot(0, 9, "肉", None, "肉") == ("keep", None)
+    assert objective_slot(0, 9, None, None, "肉") == ("keep", None)
+    assert objective_slot(5, 0, "Boar", None, None) == ("keep", None)
+
+
+def test_replace_english_names_respects_length_order_and_word_edges():
+    replaced = replace_english_names(
+        "Kill the Bear Cub and the Bear",
+        [("Bear", "熊"), ("Bear Cub", "幼熊")],
+    )
+    assert replaced == "Kill the 幼熊 and the 熊"
+    assert replace_english_names("Wolfsbane", [("Wolf", "狼")]) is None
+    assert replace_english_names("Use an Axe", [("Axe", "斧")]) is None
+    assert replace_english_names("去找老板", [("Boss", "老板")]) is None
+    assert replace_english_names("Wolf", [("Wolf", "")]) is None
+
+
+def test_quest_text_statements_updates_short_text_and_details():
+    quest = {
+        "entry": 10,
+        "req_items": [0, 4, 0, 0],
+        "src_item": 0,
+        "req_creatures": [5, 9, 0, 0],
+        "starters": [],
+        "enders": [],
+        "texts": {
+            "ObjectiveText1_loc4": "Boar",
+            "ObjectiveText2_loc4": "冲突",
+            "ObjectiveText3_loc4": None,
+            "ObjectiveText4_loc4": "",
+            "Details_loc4": "Kill the Bear Cub",
+            "Objectives_loc4": None,
+            "OfferRewardText_loc4": "",
+            "RequestItemsText_loc4": None,
+            "EndText_loc4": None,
+        },
+    }
+    statements, skips = quest_text_statements(
+        quest,
+        {4: {"english": "Meat", "zh": "肉"}},
+        {
+            5: {"english": "Boar", "zh": "野猪"},
+            9: {"english": "Wolf", "zh": "狼"},
+        },
+        "locales_quest",
+        "entry",
+    )
+    assert any("`ObjectiveText1_loc4` = '野猪'" in line for line in statements)
+    assert any("objective slot 2 has both creature and item" in line for line in skips)
+    assert all("ObjectiveText2_loc4" not in line for line in statements)
+
+
+def test_quest_long_text_replaces_linked_english_names_only():
+    quest = {
+        "entry": 11,
+        "req_items": [0, 0, 0, 0],
+        "src_item": 0,
+        "req_creatures": [5, 0, 0, 0],
+        "starters": [8],
+        "enders": [],
+        "texts": {
+            "ObjectiveText1_loc4": "野猪",
+            "ObjectiveText2_loc4": None,
+            "ObjectiveText3_loc4": None,
+            "ObjectiveText4_loc4": None,
+            "Details_loc4": "Kill the Bear Cub near the inn",
+            "Objectives_loc4": "去找老板",
+            "OfferRewardText_loc4": None,
+            "RequestItemsText_loc4": None,
+            "EndText_loc4": None,
+        },
+    }
+    statements, skips = quest_text_statements(
+        quest,
+        {},
+        {
+            5: {"english": "Bear Cub", "zh": "幼熊"},
+            8: {"english": "Innkeeper", "zh": "旅店老板"},
+        },
+        "locales_quest",
+        "entry",
+    )
+    assert skips == []
+    assert any("Kill the 幼熊 near the inn" in line for line in statements)
+    assert any("`Details_loc4` = 'Kill the Bear Cub near the inn'" in line for line in statements)
+    assert all("Objectives_loc4" not in line for line in statements)

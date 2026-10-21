@@ -122,3 +122,146 @@ def render_text_update(
         f"UPDATE {sql_ident(table)} SET {sql_ident(column)} = {sql_string(new)} "
         f"WHERE {sql_ident(entry_column)} = {int(entry)} AND {sql_ident(column)} = {sql_string(old)};"
     )
+
+
+LONG_TEXT_COLUMNS = (
+    "Details_loc4",
+    "Objectives_loc4",
+    "OfferRewardText_loc4",
+    "RequestItemsText_loc4",
+    "EndText_loc4",
+)
+
+
+def official_name(current: str | None, fetched: str | None) -> str | None:
+    if has_cjk(current):
+        return current
+    if has_cjk(fetched):
+        return fetched
+    return None
+
+
+def objective_slot(
+    creature_id: int,
+    item_id: int,
+    current: str | None,
+    creature_zh: str | None,
+    item_zh: str | None,
+) -> tuple[str, str | None]:
+    if creature_id > 0 and item_id > 0:
+        return ("skip", None)
+    if creature_id > 0:
+        official = creature_zh
+    elif item_id > 0:
+        official = item_zh
+    else:
+        return ("keep", None)
+    if current is None or current.strip() == "":
+        return ("keep", None)
+    if not has_cjk(official) or current == official:
+        return ("keep", None)
+    return ("replace", official)
+
+
+def replace_english_names(text: str, pairs: list[tuple[str, str]]) -> str | None:
+    ordered = sorted(pairs, key=lambda pair: len(pair[0]), reverse=True)
+    updated = text
+    for english, chinese in ordered:
+        if len(english) < 4:
+            continue
+        updated = _replace_bounded(updated, english, chinese)
+    if updated == text or updated == "":
+        return None
+    return updated
+
+
+def _is_ascii_letter(char: str) -> bool:
+    return len(char) == 1 and (("A" <= char <= "Z") or ("a" <= char <= "z"))
+
+
+def _replace_bounded(text: str, english: str, chinese: str) -> str:
+    result = []
+    start = 0
+    while True:
+        index = text.find(english, start)
+        if index < 0:
+            result.append(text[start:])
+            break
+        before = text[index - 1] if index else ""
+        after_index = index + len(english)
+        after = text[after_index] if after_index < len(text) else ""
+        if _is_ascii_letter(before) or _is_ascii_letter(after):
+            result.append(text[start:after_index])
+            start = after_index
+            continue
+        result.append(text[start:index])
+        result.append(chinese)
+        start = after_index
+    return "".join(result)
+
+
+def quest_text_statements(
+    quest: dict,
+    item_names: dict,
+    creature_names: dict,
+    locale_table: str,
+    entry_column: str,
+) -> tuple[list[str], list[str]]:
+    lines = []
+    skips = []
+    for index in range(4):
+        creature_id = quest["req_creatures"][index]
+        item_id = quest["req_items"][index]
+        column = f"ObjectiveText{index + 1}_loc4"
+        action, new_text = objective_slot(
+            creature_id,
+            item_id,
+            quest["texts"].get(column),
+            None if creature_id <= 0 else (creature_names.get(creature_id) or {}).get("zh"),
+            None if item_id <= 0 else (item_names.get(item_id) or {}).get("zh"),
+        )
+        if action == "skip":
+            skips.append(
+                f"quest\t{quest['entry']}\tobjective slot {index + 1} has both creature and item"
+            )
+        elif action == "replace":
+            lines.append(
+                render_text_update(
+                    locale_table,
+                    entry_column,
+                    quest["entry"],
+                    column,
+                    quest["texts"][column],
+                    new_text,
+                )
+            )
+    pairs = []
+    seen = set()
+
+    def add_pair(names: dict, entity_id: int) -> None:
+        if entity_id <= 0:
+            return
+        entity = names.get(entity_id)
+        if not entity or not has_cjk(entity.get("zh")):
+            return
+        english = entity.get("english") or ""
+        if english in seen:
+            return
+        seen.add(english)
+        pairs.append((english, entity["zh"]))
+
+    for item_id in [*quest["req_items"], quest["src_item"]]:
+        add_pair(item_names, item_id)
+    for creature_id in [*quest["req_creatures"], *quest["starters"], *quest["enders"]]:
+        add_pair(creature_names, creature_id)
+    for column in LONG_TEXT_COLUMNS:
+        current = quest["texts"].get(column)
+        if current is None or current.strip() == "":
+            continue
+        updated = replace_english_names(current, pairs)
+        if updated is None:
+            continue
+        lines.append(
+            render_text_update(locale_table, entry_column, quest["entry"], column, current, updated)
+        )
+    return lines, skips
