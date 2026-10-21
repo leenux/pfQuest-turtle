@@ -1,6 +1,6 @@
 -- Initialize all static variables
 local loc = GetLocale()
-local dbs = { "items", "quests", "quests-itemreq", "objects", "units", "zones", "professions", "areatrigger", "refloot" }
+local dbs = { "items", "quests", "quests-itemreq", "objects", "units", "zones", "professions", "areatrigger", "refloot", "objtext" }
 local noloc = { "items", "quests", "objects", "units" }
 
 -- Patch databases to merge TurtleWoW data
@@ -42,6 +42,124 @@ if loc_update then patchtable(loc_core, loc_update) end
 
 if pfDB["minimap-turtle"] then patchtable(pfDB["minimap"], pfDB["minimap-turtle"]) end
 if pfDB["meta-turtle"] then patchtable(pfDB["meta"], pfDB["meta-turtle"]) end
+
+
+-- 没有刷点的召唤怪借来源坐标。写在合并之后，避免被 data-turtle 整条替换盖掉。
+local summonById = {
+  [314] = {  -- 手改 2026-08-24：伊莉莎：挖开伊莉莎的坟墓
+          ["O"] = 51708,
+        },
+  [1494] = {
+          ["O"] = 2289,
+        },
+  [2757] = {  -- 手改 2026-08-24：布莱克拉席：三颗符文石放上大地封印
+          ["O"] = 2933,
+        },
+  [2759] = {  -- 手改 2026-08-24：赫玛图斯：与布莱克拉席同一处封印
+          ["O"] = 2933,
+        },
+  [6239] = {  -- 手改 2026-08-24：塞克隆尼亚：捕风者巴斯拉施法召唤
+          ["U"] = 6176,
+        },
+  [6549] = {  -- 手改 2026-08-24：宝珠之魔：塔贝萨从召唤师的宝珠里放出来
+          ["U"] = 6546,
+        },
+  [6550] = {  -- 手改 2026-08-24：法力怒灵：塔贝萨开魔法裂缝放出来
+          ["U"] = 6546,
+        },
+  [8612] = {
+          ["U"] = { 5308, 5307 },
+          ["I"] = 10699,
+          ["hint"] = "Kill $source, then use $item on its corpse",
+        },
+  [9621] = {  -- 手改 2026-08-24：融合软泥怪：变出巨大的软泥怪
+          ["U"] = 6557,
+          ["I"] = 12288,
+        },
+  [10717] = {  -- 手改 2026-08-24：时光寄生虫：对时间裂隙用时光置换器
+          ["O"] = 175795,
+          ["I"] = 12627,
+        },
+  [10882] = {  -- 手改 2026-08-24：阿利卡拉：火岩粉洒在生命圣火上
+          ["O"] = 175944,
+        },
+  [10936] = {  -- 手改 2026-08-24：约瑟夫·雷德帕斯：包裹是放到广场中央，不是"对着广场用"；地点名图钉抬头里已经有了
+          ["O"] = 177528,
+          ["I"] = 15209,
+          ["hint"] = "Use $item",
+        },
+  [11920] = {  -- 手改 2026-08-24：高戈罗克：魔化共鸣水晶打开共鸣桶
+          ["O"] = 178145,
+        },
+  [12369] = {  -- 手改 2026-08-24：科拉加鲁：毒蛇宝石放进毒蛇雕像
+          ["O"] = 177673,
+        },
+  [13279] = {
+          ["U"] = { 8521, 8522 },
+          ["I"] = 17310,
+        },
+  [14564] = {  -- 手改 2026-08-24：恐惧谷的灵魂：对怨灵用驱魔香炉
+          ["O"] = 179747,
+          ["I"] = 18752,
+        },
+  [14603] = {  -- 手改 2026-08-24：被缩小的海岸巨人（菲拉斯）
+          ["U"] = 5359,
+          ["I"] = 18904,
+        },
+  [14638] = {  -- 手改 2026-08-24：被缩小的波涛巨人
+          ["U"] = 5361,
+          ["I"] = 18904,
+        },
+  [14639] = {  -- 手改 2026-08-24：被缩小的深海巨人
+          ["U"] = 5360,
+          ["I"] = 18904,
+        },
+  [14862] = {  -- 手改 2026-08-24：洛曼卡恩大使：雕文埋进格拉卡洛之骨
+          ["O"] = 180505,
+        },
+  [11064] = {  -- 手改 2026-08-24：手工修订
+          ["U"] = { 8530, 8531, 8532 },
+          ["hint"] = "Kill the ghouls to release $target",
+        },
+  [11836] = {
+          ["U"] = 2164,
+          ["I"] = 7586,
+        },
+  [14604] = {  -- 手改 2026-08-24：被缩小的大地行者
+          ["U"] = 5357,
+          ["I"] = 18904,
+        },
+  [14640] = {  -- 手改 2026-08-24：被缩小的峭壁巨人
+          ["U"] = 5358,
+          ["I"] = 18904,
+        },
+  [60499] = {  -- 手改 2026-08-24：菲罗斯：与英桑姆尼对话召唤  [实测]
+          ["U"] = 60446,
+        },
+  [60954] = {  -- 手改 2026-08-24：赫达尼亚：在伯特·马诺身边掏出吊坠
+          ["U"] = 52017,
+        },
+  [61514] = {  -- 手改 2026-08-24："柳" (61514): 40908 点燃阿利亚坦的篝火 (2020026) 召唤出来，无坐标  [实测]
+          ["O"] = 2020026,
+        },
+  [62585] = {  -- 手改 2026-08-24："达格诺斯之焰" (62585): 41742 与同名场景物 2020193 对话召唤出来，无坐标  [实测]
+          ["O"] = 2020193,
+        },
+  [62989] = {  -- 手改 2026-08-24：与 62920 裂隙大师拉尔佩卡对话后现身，本体无坐标 [实测]
+          ["U"] = 62920,
+        },
+}
+
+local mergedUnits = pfDB['units'] and pfDB['units']['data']
+if mergedUnits then
+  for id, summon in pairs(summonById) do
+    if mergedUnits[id] then
+      mergedUnits[id]['coords'] = {}
+      mergedUnits[id]['summon'] = summon
+    end
+  end
+end
+
 
 -- The legacy SQL importer represented some reference-loot pointers as though
 -- the reference ID itself were an item drop.  Reference IDs often overlap a
@@ -100,17 +218,63 @@ end
 -- Use turtle-wow database url
 pfQuest.dburl = "https://database.turtle-wow.org/?quest="
 
+-- 户外世界地图（大陆 1/2）可达的区域。自制副本挂在大陆 3 及以后。
+local outdoor_maps
+local function IsOutdoorMap(id)
+  if not outdoor_maps then
+    local found = {}
+    for cid in pairs({ GetMapContinents() }) do
+      if cid < 3 then
+        for _, name in pairs({ GetMapZones(cid) }) do
+          local zid = pfMap:GetMapIDByName(name)
+          if zid then
+            found[zid] = true
+          end
+        end
+      end
+    end
+    if next(found) then
+      outdoor_maps = found
+    end
+  end
+  if not outdoor_maps then
+    return true
+  end
+  return outdoor_maps[id]
+end
+
 -- Disable Minimap in custom dungeon maps
 function pfMap:HasMinimap(map_id)
-  -- disable dungeon minimap
-  local has_minimap = not IsInInstance()
-
-  -- enable dungeon minimap if continent is less then 3 (e.g AV)
-  if IsInInstance() and GetCurrentMapContinent() < 3 then
-    has_minimap = true
+  if IsInInstance() then
+    return GetCurrentMapContinent() < 3
   end
 
-  return has_minimap
+  -- 副本入口周边的地块会共用副本区域号，不挡就会把内部坐标画到户外小地图上。
+  if map_id and not IsOutdoorMap(map_id) then
+    return false
+  end
+
+  return true
+end
+
+-- 互斥组里已经做过任一条，其余的 [!] 不再画。不把没做过的编号写进 history，
+-- 否则被放弃那条分支的下一环会被当成前置已完成。
+local _QuestFilter = pfDatabase.QuestFilter
+function pfDatabase:QuestFilter(id, plevel, pclass, prace)
+  if not _QuestFilter(self, id, plevel, pclass, prace) then
+    return
+  end
+
+  local close = pfDB["quests"]["data"][id] and pfDB["quests"]["data"][id]["close"]
+  if close then
+    for _, qid in pairs(close) do
+      if qid ~= id and pfQuest_history[qid] then
+        return
+      end
+    end
+  end
+
+  return true
 end
 
 -- Reload all pfQuest internal database shortcuts
@@ -134,13 +298,7 @@ local function complete(history, qid)
   local level = pfQuest_history[qid] and pfQuest_history[qid][2] or 0
   history[qid] = { time, level }
 
-  -- complete all quests that are closed by the selcted one
-  local close = pfDB["quests"]["data"][qid] and pfDB["quests"]["data"][qid]["close"]
-  if close then
-    for _, qid in pairs(close) do
-      if not history[qid] then complete(history, qid) end
-    end
-  end
+  -- close 由上面的 QuestFilter 挡住，不再把互斥兄弟写进 history。
 
   -- make sure all prequests are marked as done aswell
   local prequests = pfDB["quests"]["data"][qid] and pfDB["quests"]["data"][qid]["pre"]
