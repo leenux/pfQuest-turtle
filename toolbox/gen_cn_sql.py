@@ -43,7 +43,7 @@ def generate_documents(bundle: dict, cache: dict, fetch) -> dict:
         fetch_type = FETCH_TYPES[category]
         key = str(entry)
         if key in stored[fetch_type]:
-            return "hit", stored[fetch_type][key], True
+            return "hit", stored[fetch_type][key], seen_region
         if state["stopped"] or category in category_stopped:
             note(category, entry, "fetch stopped")
             return "miss", None, seen_region

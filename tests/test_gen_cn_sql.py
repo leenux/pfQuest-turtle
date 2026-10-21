@@ -127,3 +127,79 @@ def test_structural_failure_stops_only_that_category():
     assert "item-cn-2026-10-21.sql" not in result["files"]
     assert "no name region" in result["skipped"]
     assert "`name_loc4` = '火球'" in result["files"]["spell-cn-2026-10-21.sql"]
+
+
+def _item(entry):
+    return {"entry": entry, "english": f"Item {entry}", "current": None, "row_exists": False}
+
+
+def _bundle(items=(), spells=(), quests=()):
+    return {
+        "schema": _schema(),
+        "extra_required": {},
+        "items": list(items),
+        "spells": list(spells),
+        "creatures": [],
+        "quests": list(quests),
+    }
+
+
+def test_cached_rows_do_not_count_as_seen_name_region():
+    calls = []
+
+    def fetch(fetch_type, entry):
+        calls.append((fetch_type, entry))
+        return "<html>blocked</html>"
+
+    bundle = _bundle(items=[_item(1), _item(2), _item(3)])
+    result = generate_documents(bundle, {"item": {"1": "狼皮"}}, fetch)
+    assert calls == [("item", 2)]
+    assert "no name region" in result["skipped"]
+    assert "item-cn-2026-10-21.sql" not in result["files"]
+
+
+def test_relation_tables_unavailable_recorded_once():
+    quest = _quest()
+    quest["current"] = None
+    result = generate_documents(_bundle(quests=[quest]), {"quest": {"11": "熊"}}, lambda t, e: "")
+    assert result["skipped"].count("relation tables unavailable") == 1
+
+
+def test_failure_counter_shared_across_categories():
+    calls = []
+
+    def fetch(fetch_type, entry):
+        calls.append((fetch_type, entry))
+        raise FetchError(404)
+
+    quest = _quest()
+    quest["current"] = None
+    bundle = _bundle(
+        items=[_item(i) for i in range(1, 20)],
+        spells=[{"entry": 100, "english": "Fireball", "current": None, "row_exists": False}],
+        quests=[quest],
+    )
+    result = generate_documents(bundle, {}, fetch)
+    assert len(calls) == 20
+    assert ("quest", 11) not in calls
+    assert result["skipped"].count("http 404") == 20
+    assert "quest\t11\tfetch stopped" in result["skipped"]
+
+
+def test_cached_name_still_produces_sql_after_global_stop():
+    def fetch(fetch_type, entry):
+        raise FetchError(404)
+
+    bundle = _bundle(items=[_item(i) for i in range(1, 22)])
+    result = generate_documents(bundle, {"item": {"1": "狼皮"}}, fetch)
+    assert result["skipped"].count("http 404") == 20
+    assert "狼皮" in result["files"]["item-cn-2026-10-21.sql"]
+
+
+def test_title_without_chinese_is_logged_and_not_inserted():
+    def fetch(fetch_type, entry):
+        return "<title>Wolf Pelt</title>"
+
+    result = generate_documents(_bundle(items=[_item(1)]), {}, fetch)
+    assert "item\t1\tno chinese name" in result["skipped"]
+    assert "INSERT" not in result["files"]["item-cn-2026-10-21.sql"]
