@@ -265,3 +265,110 @@ def quest_text_statements(
             render_text_update(locale_table, entry_column, quest["entry"], column, current, updated)
         )
     return lines, skips
+
+
+def find_column(columns: set[str], candidates: list[str]) -> str | None:
+    lowered = {column.lower(): column for column in columns}
+    for candidate in candidates:
+        found = lowered.get(candidate.lower())
+        if found:
+            return found
+    return None
+
+
+def relation_mapping(columns: set[str]) -> tuple[str, str] | None:
+    lowered = {column.lower(): column for column in columns}
+    found = []
+    for left, right in (("id", "quest"), ("creature_entry", "quest"), ("creature", "quest")):
+        if left in lowered and right in lowered:
+            found.append((lowered[left], lowered[right]))
+    if len(found) == 1:
+        return found[0]
+    return None
+
+
+def classify_schema(table_columns: dict[str, set[str]]) -> dict:
+    by_lower = {name.lower(): (name, columns) for name, columns in table_columns.items()}
+    specs = {
+        "item": ("item_template", "locales_item", ["name"], ["name_loc4"]),
+        "spell": ("spell_template", "locales_spell", ["name", "SpellName"], ["name_loc4"]),
+        "creature": ("creature_template", "locales_creature", ["Name", "name"], ["name_loc4"]),
+        "quest": ("quest_template", "locales_quest", ["Title"], ["Title_loc4"]),
+    }
+    quest_template_required = [
+        "ReqItemId1", "ReqItemId2", "ReqItemId3", "ReqItemId4", "SrcItemId",
+        "ReqCreatureOrGOId1", "ReqCreatureOrGOId2", "ReqCreatureOrGOId3", "ReqCreatureOrGOId4",
+        "Title",
+    ]
+    quest_locale_required = [
+        "Title_loc4", "Details_loc4", "Objectives_loc4",
+        "ObjectiveText1_loc4", "ObjectiveText2_loc4", "ObjectiveText3_loc4", "ObjectiveText4_loc4",
+        "OfferRewardText_loc4", "RequestItemsText_loc4", "EndText_loc4",
+    ]
+    result = {}
+    for key, (english_table, locale_table, english_names, locale_names) in specs.items():
+        if english_table not in by_lower or locale_table not in by_lower:
+            result[key] = {"ok": False, "reason": f"missing {english_table} or {locale_table}"}
+            continue
+        english_actual, english_columns = by_lower[english_table]
+        locale_actual, locale_columns = by_lower[locale_table]
+        entry_column = find_column(english_columns, ["entry", "Entry"])
+        locale_entry = find_column(locale_columns, ["entry", "Entry"])
+        english_name = find_column(english_columns, english_names)
+        locale_name = find_column(locale_columns, locale_names)
+        mapped = {"template": {}, "locale": {}}
+        if key == "quest":
+            missing = False
+            for column in quest_template_required:
+                found = find_column(english_columns, [column])
+                mapped["template"][column] = found
+                missing = missing or found is None
+            for column in quest_locale_required:
+                found = find_column(locale_columns, [column])
+                mapped["locale"][column] = found
+                missing = missing or found is None
+            if missing or not entry_column or not locale_entry or not english_name or not locale_name:
+                result[key] = {"ok": False, "reason": "missing quest text or link columns"}
+                continue
+        elif not entry_column or not locale_entry or not english_name or not locale_name:
+            result[key] = {"ok": False, "reason": f"missing columns for {key}"}
+            continue
+        result[key] = {
+            "ok": True,
+            "english_table": english_actual,
+            "locale_table": locale_actual,
+            "entry_column": entry_column,
+            "locale_entry": locale_entry,
+            "english_name": english_name,
+            "name_column": locale_name,
+            "columns": mapped,
+        }
+    relations = {}
+    for table in ("creature_questrelation", "creature_involvedrelation"):
+        if table not in by_lower:
+            relations[table] = None
+            continue
+        actual, columns = by_lower[table]
+        mapping = relation_mapping(columns)
+        if mapping is None:
+            relations[table] = None
+        else:
+            relations[table] = {"table": actual, "creature": mapping[0], "quest": mapping[1]}
+    result["relations"] = relations
+    return result
+
+
+def extra_required_columns(
+    column_rows: list[dict], entry_column: str, name_column: str
+) -> list[str]:
+    required = []
+    for column in column_rows:
+        if column["name"] in (entry_column, name_column):
+            continue
+        extra = (column.get("extra") or "").lower()
+        if "auto_increment" in extra:
+            continue
+        if column["nullable"] == "NO" and column["default"] is None:
+            required.append(column["name"])
+    return sorted(required)
+

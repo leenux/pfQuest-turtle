@@ -180,3 +180,56 @@ def test_quest_long_text_replaces_linked_english_names_only():
     assert any("Kill the 幼熊 near the inn" in line for line in statements)
     assert any("`Details_loc4` = 'Kill the Bear Cub near the inn'" in line for line in statements)
     assert all("Objectives_loc4" not in line for line in statements)
+
+
+from cn_locale import classify_schema, extra_required_columns
+
+
+def _columns(names):
+    return set(names)
+
+
+def test_classify_schema_skips_spells_when_a_table_is_missing():
+    tables = {
+        "item_template": _columns(["entry", "name"]),
+        "locales_item": _columns(["entry", "name_loc4"]),
+        "creature_template": _columns(["Entry", "Name"]),
+        "locales_creature": _columns(["entry", "name_loc4"]),
+        "quest_template": _columns([
+            "entry", "Title", "ReqItemId1", "ReqItemId2", "ReqItemId3", "ReqItemId4",
+            "SrcItemId", "ReqCreatureOrGOId1", "ReqCreatureOrGOId2",
+            "ReqCreatureOrGOId3", "ReqCreatureOrGOId4",
+        ]),
+        "locales_quest": _columns([
+            "entry", "Title_loc4", "Details_loc4", "Objectives_loc4",
+            "ObjectiveText1_loc4", "ObjectiveText2_loc4", "ObjectiveText3_loc4",
+            "ObjectiveText4_loc4", "OfferRewardText_loc4", "RequestItemsText_loc4",
+            "EndText_loc4",
+        ]),
+        "creature_questrelation": _columns(["id", "quest"]),
+    }
+    schema = classify_schema(tables)
+    assert schema["spell"]["ok"] is False
+    assert schema["item"]["ok"] is True
+    assert schema["item"]["english_name"] == "name"
+    assert schema["creature"]["entry_column"] == "Entry"
+    assert schema["relations"]["creature_questrelation"]["creature"] == "id"
+    assert schema["relations"]["creature_involvedrelation"] is None
+
+
+def test_relation_mapping_rejects_ambiguous_columns():
+    schema = classify_schema({
+        "creature_involvedrelation": _columns(["id", "creature", "quest"]),
+    })
+    assert schema["relations"]["creature_involvedrelation"] is None
+
+
+def test_extra_required_columns_keeps_non_null_columns_without_defaults():
+    rows = [
+        {"name": "entry", "nullable": "NO", "default": None, "extra": ""},
+        {"name": "name_loc4", "nullable": "YES", "default": None, "extra": ""},
+        {"name": "description_loc4", "nullable": "NO", "default": None, "extra": ""},
+        {"name": "verified", "nullable": "NO", "default": "0", "extra": ""},
+    ]
+    assert extra_required_columns(rows, "entry", "name_loc4") == ["description_loc4"]
+
