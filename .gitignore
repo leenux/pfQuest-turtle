@@ -5,3 +5,7 @@ sql/db.local.json
 sql/cache/
 docs/
 sql/
+tests/
+toolbox/__pycache__/
+toolbox/cn_locale.py
+toolbox/gen_cn_sql.py
