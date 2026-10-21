@@ -1,3 +1,5 @@
 toolbox/pfQuest
 toolbox/pfQuest-fork
 .worktrees/
+sql/db.local.json
+sql/cache/

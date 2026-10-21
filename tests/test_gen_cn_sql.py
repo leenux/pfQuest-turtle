@@ -203,3 +203,46 @@ def test_title_without_chinese_is_logged_and_not_inserted():
     result = generate_documents(_bundle(items=[_item(1)]), {}, fetch)
     assert "item\t1\tno chinese name" in result["skipped"]
     assert "INSERT" not in result["files"]["item-cn-2026-10-21.sql"]
+
+
+from pathlib import Path
+
+from gen_cn_sql import load_bundle, run
+
+
+def test_load_bundle_uses_select_and_distinguishes_missing_locale_rows():
+    seen = []
+
+    def query(sql):
+        assert sql.lstrip().upper().startswith("SELECT")
+        seen.append(sql)
+        if "information_schema.COLUMNS" in sql:
+            return [
+                {"TABLE_NAME": "item_template", "COLUMN_NAME": "entry", "IS_NULLABLE": "NO", "COLUMN_DEFAULT": None, "EXTRA": ""},
+                {"TABLE_NAME": "item_template", "COLUMN_NAME": "name", "IS_NULLABLE": "NO", "COLUMN_DEFAULT": None, "EXTRA": ""},
+                {"TABLE_NAME": "locales_item", "COLUMN_NAME": "entry", "IS_NULLABLE": "NO", "COLUMN_DEFAULT": None, "EXTRA": ""},
+                {"TABLE_NAME": "locales_item", "COLUMN_NAME": "name_loc4", "IS_NULLABLE": "YES", "COLUMN_DEFAULT": None, "EXTRA": ""},
+                {"TABLE_NAME": "locales_item", "COLUMN_NAME": "description_loc4", "IS_NULLABLE": "NO", "COLUMN_DEFAULT": None, "EXTRA": ""},
+            ]
+        if "FROM `item_template`" in sql:
+            return [
+                {"entry": 7, "english": "Wolf Pelt", "locale_entry": None, "current": None},
+                {"entry": 8, "english": "Cooked", "locale_entry": 8, "current": "熟肉"},
+            ]
+        return []
+
+    bundle = load_bundle(query)
+    assert bundle["items"][0]["row_exists"] is False
+    assert bundle["items"][1]["row_exists"] is True
+    assert bundle["extra_required"]["locales_item"] == ["description_loc4"]
+    assert bundle["schema"]["spell"]["ok"] is False
+    assert any(sql.startswith("SELECT") for sql in seen)
+
+
+def test_run_writes_nothing_when_connect_fails(tmp_path):
+    def connect(config):
+        raise OSError("down")
+
+    code = run({"user": "a", "password": "b", "database": "world"}, connect, None, tmp_path)
+    assert code == 1
+    assert list(tmp_path.rglob("*.sql")) == []
