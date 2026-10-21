@@ -4,6 +4,8 @@ from cn_locale import (
     has_name_region,
     parse_capycraft_name,
     capycraft_url,
+    render_name_sql,
+    render_text_update,
 )
 
 
@@ -46,3 +48,33 @@ def test_has_name_region_requires_title_or_h1():
 
 def test_capycraft_url_uses_the_agreed_query():
     assert capycraft_url("npc", 42) == "https://capycraft.io/db/?npc=42"
+
+
+def test_render_name_sql_inserts_when_the_locale_row_is_missing():
+    sql = render_name_sql(
+        "locales_item", "entry", 7, "name_loc4", False, None, "狼皮", ["description_loc4"]
+    )
+    assert "INSERT INTO `locales_item`" in sql
+    assert "WHERE NOT EXISTS" in sql
+    assert "`description_loc4`" in sql
+    assert "'狼皮'" in sql
+
+
+def test_render_name_sql_updates_null_and_exact_old_values():
+    null_sql = render_name_sql(
+        "locales_item", "entry", 7, "name_loc4", True, None, "狼皮", []
+    )
+    old_sql = render_name_sql(
+        "locales_item", "entry", 8, "name_loc4", True, "Wolf's Pelt", "狼皮", []
+    )
+    assert "`name_loc4` IS NULL" in null_sql
+    assert "UPDATE `locales_item`" in old_sql
+    assert "`name_loc4` = 'Wolf''s Pelt'" in old_sql
+
+
+def test_sql_string_escapes_quotes_backslashes_and_newlines():
+    statement = render_text_update(
+        "locales_quest", "entry", 3, "Details_loc4", "A\\B\nC", "甲'乙"
+    )
+    assert "`Details_loc4` = '甲''乙'" in statement
+    assert "`Details_loc4` = 'A\\\\B\\nC'" in statement

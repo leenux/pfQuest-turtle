@@ -64,3 +64,61 @@ def _slice_cjk(raw: str) -> str | None:
 
 def capycraft_url(fetch_type: str, entry: int) -> str:
     return f"https://capycraft.io/db/?{fetch_type}={int(entry)}"
+
+
+def sql_ident(name: str) -> str:
+    return "`" + name.replace("`", "``") + "`"
+
+
+def sql_string(value: str) -> str:
+    escaped = (
+        value.replace("\\", "\\\\")
+        .replace("'", "''")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+    )
+    return "'" + escaped + "'"
+
+
+def render_name_sql(
+    table: str,
+    entry_column: str,
+    entry: int,
+    name_column: str,
+    row_exists: bool,
+    current: str | None,
+    chinese: str,
+    extra_required: list[str],
+) -> str:
+    entry_id = int(entry)
+    table_sql = sql_ident(table)
+    entry_sql = sql_ident(entry_column)
+    name_sql = sql_ident(name_column)
+    if not row_exists:
+        extras = sorted(extra_required)
+        columns = [entry_column, name_column, *extras]
+        values = [str(entry_id), sql_string(chinese), *["''" for _ in extras]]
+        column_sql = ", ".join(sql_ident(column) for column in columns)
+        value_sql = ", ".join(values)
+        return (
+            f"INSERT INTO {table_sql} ({column_sql}) "
+            f"SELECT {value_sql} FROM DUAL "
+            f"WHERE NOT EXISTS (SELECT 1 FROM {table_sql} WHERE {entry_sql} = {entry_id});"
+        )
+    if current is None:
+        condition = f"{name_sql} IS NULL"
+    else:
+        condition = f"{name_sql} = {sql_string(current)}"
+    return (
+        f"UPDATE {table_sql} SET {name_sql} = {sql_string(chinese)} "
+        f"WHERE {entry_sql} = {entry_id} AND {condition};"
+    )
+
+
+def render_text_update(
+    table: str, entry_column: str, entry: int, column: str, old: str, new: str
+) -> str:
+    return (
+        f"UPDATE {sql_ident(table)} SET {sql_ident(column)} = {sql_string(new)} "
+        f"WHERE {sql_ident(entry_column)} = {int(entry)} AND {sql_ident(column)} = {sql_string(old)};"
+    )
