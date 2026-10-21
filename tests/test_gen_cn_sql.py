@@ -246,3 +246,67 @@ def test_run_writes_nothing_when_connect_fails(tmp_path):
     code = run({"user": "a", "password": "b", "database": "world"}, connect, None, tmp_path)
     assert code == 1
     assert list(tmp_path.rglob("*.sql")) == []
+
+
+def test_load_bundle_reads_quest_objectives_and_relations():
+    seen = []
+    columns = {
+        "quest_template": [
+            "entry", "Title", "ReqItemId1", "ReqItemId2", "ReqItemId3", "ReqItemId4",
+            "SrcItemId", "ReqCreatureOrGOId1", "ReqCreatureOrGOId2",
+            "ReqCreatureOrGOId3", "ReqCreatureOrGOId4",
+        ],
+        "locales_quest": [
+            "entry", "Title_loc4", "Details_loc4", "Objectives_loc4",
+            "ObjectiveText1_loc4", "ObjectiveText2_loc4", "ObjectiveText3_loc4",
+            "ObjectiveText4_loc4", "OfferRewardText_loc4", "RequestItemsText_loc4",
+            "EndText_loc4",
+        ],
+        "creature_questrelation": ["id", "quest"],
+        "creature_involvedrelation": ["id", "quest"],
+    }
+    schema_rows = [
+        {"TABLE_NAME": table, "COLUMN_NAME": column, "IS_NULLABLE": "YES", "COLUMN_DEFAULT": None, "EXTRA": ""}
+        for table, names in columns.items()
+        for column in names
+    ]
+    quest_row = {
+        "entry": 11,
+        "english": "Kill the Boar",
+        "locale_entry": 11,
+        "current": "杀野猪",
+        "req_item_1": 4, "req_item_2": 0, "req_item_3": 0, "req_item_4": 0,
+        "src_item": 0,
+        "req_creature_1": 5, "req_creature_2": -6, "req_creature_3": 0, "req_creature_4": 0,
+        "objective_1": "Boar", "objective_2": None, "objective_3": None, "objective_4": None,
+        "details": "Kill the Boar",
+        "objectives": None, "offer": None, "request": None, "end_text": None,
+    }
+
+    def query(sql):
+        assert sql.lstrip().upper().startswith("SELECT")
+        seen.append(sql)
+        if "information_schema.COLUMNS" in sql:
+            return schema_rows
+        if "FROM `creature_questrelation`" in sql:
+            return [{"creature_id": 8, "quest_id": 11}]
+        if "FROM `creature_involvedrelation`" in sql:
+            return [{"creature_id": 9, "quest_id": 11}]
+        if "FROM `quest_template`" in sql:
+            return [quest_row]
+        return []
+
+    bundle = load_bundle(query)
+    assert len(bundle["quests"]) == 1
+    quest = bundle["quests"][0]
+    assert quest["req_items"] == [4, 0, 0, 0]
+    assert quest["src_item"] == 0
+    assert quest["req_creatures"] == [5, -6, 0, 0]
+    assert quest["starters"] == [8]
+    assert quest["enders"] == [9]
+    assert quest["texts"]["Details_loc4"] == "Kill the Boar"
+    assert quest["texts"]["ObjectiveText1_loc4"] == "Boar"
+    assert quest["current"] == "杀野猪"
+    assert quest["row_exists"] is True
+    assert any("FROM `creature_questrelation`" in sql and sql.startswith("SELECT") for sql in seen)
+    assert any("FROM `quest_template`" in sql and sql.startswith("SELECT") for sql in seen)
